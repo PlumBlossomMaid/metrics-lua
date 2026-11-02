@@ -40,5 +40,7 @@ M.AUROC = ret.AUROC
 M.AveragePrecision = ret.AveragePrecision
 M.MRR = ret.MRR
 M.NDCG = ret.NDCG
+local txt = require "metrics.text"
+M.Bleu = txt.Bleu
 
 return M

@@ -43,5 +43,9 @@ build = {
         ["metrics.collection"] = "lua/metrics/collection.lua",
         ["metrics.classification"] = "lua/metrics/classification.lua",
         ["metrics.regression"] = "lua/metrics/regression.lua",
+        ["metrics.aggregate"] = "lua/metrics/aggregate.lua",
+        ["metrics.image"] = "lua/metrics/image.lua",
+        ["metrics.retrieval"] = "lua/metrics/retrieval.lua",
+        ["metrics.text"] = "lua/metrics/text.lua",
     },
 }

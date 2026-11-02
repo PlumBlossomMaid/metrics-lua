@@ -256,6 +256,31 @@ local function is_nan(t)
 end
 check(is_nan(res2.acc), "Collection reset -> acc 0/0 -> NaN")
 
+-- ---- Bleu(text) ----
+-- 完美匹配:所有 n-gram 全对 → 1.0
+local b1 = metrics.Bleu{}
+b1:update("the cat sat on the mat", "the cat sat on the mat")
+check(near(b1:compute(), 1.0), "Bleu perfect match == 1.0")
+-- 部分匹配,smooth=false(默认):4-gram 0 match → 整体 0
+-- target 6 词, pred 7 词;unigram 5/7, bigram 2/6, trigram 1/5, 4gram 0
+local b2 = metrics.Bleu{}
+b2:update("the cat is on the mat", "there is a cat on the mat")
+check(b2:compute() == 0.0, "Bleu no-smooth 4gram-zero == 0.0")
+-- 同上 smooth=true:4gram 平滑 1/4 → >0
+-- exp(0.25*(ln 5/7 + ln 1/3 + ln 1/5 + ln 1/4)) = exp(-1.107704) = 0.3303164
+local b3 = metrics.Bleu{ smooth = true }
+b3:update("the cat is on the mat", "there is a cat on the mat")
+check(near(b3:compute(), 0.3303164), "Bleu smoothed partial == 0.3303164")
+-- brevity penalty:hyp 4 词 < ref 10 词 → bp=exp(1-10/4)=exp(-1.5)=0.223130,
+-- 但 pred 是 ref 前缀,所有 clip 都满 → p_k=1,BP 唯一惩罚
+local b4 = metrics.Bleu{}
+b4:update("a b c d e f g h i j", "a b c d")
+check(near(b4:compute(), 0.223130), "Bleu brevity penalty == 0.223130")
+-- reset 后清空;未 update 就 compute 报错
+b4:reset()
+local err_bleu = pcall(function() return b4:compute() end)
+check(err_bleu == false, "Bleu compute before update errors")
+
 print(("SMOKE PASS: metrics-lua first batch OK (%d assertions)"
        ):format(ntests))
 os.exit(0)
