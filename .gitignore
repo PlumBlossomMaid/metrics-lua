@@ -1,0 +1,10 @@
+# build outputs
+build/
+*.dll
+*.obj
+*.exe
+
+# editor / OS junk
+*.swp
+.DS_Store
+Thumbs.db
