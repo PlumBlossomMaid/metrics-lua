@@ -165,6 +165,22 @@ sm:update(from_lua { 1, 2 })
 sm:update(3)
 check(near(scalar(sm:compute()), 6.0), "SumMetric == 1+2+3 == 6")
 
+-- ---- CatMetric ----
+-- 收集 3 个 [2] 张量,沿 axis=1 竖排拼接 -> [6]
+local cat = metrics.CatMetric()
+cat:update(from_lua { 1, 2 })
+cat:update(from_lua { 3, 4 })
+cat:update(from_lua { 5, 6 })
+local cbs = cat:compute():to_host_bytes()
+check(f32_at(cbs, 1) == 1 and f32_at(cbs, 5) == 2 and f32_at(cbs, 9) == 3
+      and f32_at(cbs, 13) == 4 and f32_at(cbs, 17) == 5 and f32_at(cbs, 21) == 6,
+      "CatMetric concat 3x[2] -> [1..6]")
+-- reset 后收集态清空
+cat:reset()
+cat:update(from_lua { 9, 8 })
+local c2b = cat:compute():to_host_bytes()
+check(f32_at(c2b, 1) == 9 and f32_at(c2b, 5) == 8, "CatMetric reset + reuse")
+
 -- ---- PSNR ----
 -- preds=[0,1] target=[1,1]: MSE=0.5,
 -- PSNR = 20*log10(1) - 10*log10(0.5) = 0 + 3.0103

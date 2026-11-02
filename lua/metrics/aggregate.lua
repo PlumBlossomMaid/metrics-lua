@@ -1,7 +1,7 @@
 -- lua/metrics/aggregate.lua -- 通用聚合指标(torchmetrics.aggregation)
 -- MeanMetric: 逐步累积 sum/count,compute = sum/count
 -- SumMetric:  逐步累积 sum,compute = sum
--- CatMetric:  拼接 —— 需要 concat,顶层层尚未暴露;留待后续。
+-- CatMetric:  收集 tensor 列表,compute 时沿 axis 拼接(torchmetrics 语义)。
 
 local class = require "pl.class"
 local paddle = require "paddle"
@@ -51,7 +51,38 @@ function sum_metric:compute()
   return self.sum
 end
 
+-- CatMetric{axis} -- update 追加 tensor 到收集列表,compute 沿 axis 拼接。
+-- 1-based axis(默认 1 = 按第一维竖排拼接,对齐 torchmetrics axis=0)。
+-- 状态用 Lua 表收集(不能进 add_state:reset 需整表替换,且表默认值
+-- 跨实例共享会互相污染 —— 表在 _init 里新建)。
+local cat_metric = class(Metric)
+
+function cat_metric:_init(config)
+  Metric._init(self, config)
+  config = config or {}
+  self.axis = config.axis or 1
+  self._parts = {}
+end
+
+function cat_metric:update(value)
+  Metric._check_tensors(value)
+  self._parts[#self._parts + 1] = value
+end
+
+function cat_metric:compute()
+  if #self._parts == 0 then
+    error("metrics: CatMetric:update() must be called before compute()", 2)
+  end
+  return paddle.concat{ x = self._parts, axis = self.axis }
+end
+
+function cat_metric:reset()
+  self._parts = {}
+  return self
+end
+
 return {
   MeanMetric = mean_metric,
   SumMetric = sum_metric,
+  CatMetric = cat_metric,
 }

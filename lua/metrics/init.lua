@@ -32,6 +32,7 @@ M.PearsonCorrCoef = reg.PearsonCorrCoef
 local agg = require "metrics.aggregate"
 M.MeanMetric = agg.MeanMetric
 M.SumMetric = agg.SumMetric
+M.CatMetric = agg.CatMetric
 local img = require "metrics.image"
 M.PSNR = img.PSNR
 local ret = require "metrics.retrieval"
