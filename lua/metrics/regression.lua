@@ -103,9 +103,45 @@ function r2_score:compute()
   return paddle.subtract{ paddle.ones{ 1 }, paddle.divide{ ss_res, den } }
 end
 
+-- ---------------------------------------------------------------------
+-- PearsonCorrCoef -- Pearson 相关系数(torchmetrics 增量公式):
+--   r = (nΣxy - ΣxΣy) / sqrt((nΣx²-(Σx)²) · (nΣy²-(Σy)²))
+-- ---------------------------------------------------------------------
+local pearson_corr_coef = class(Metric)
+
+function pearson_corr_coef:_init(config)
+  Metric._init(self, config)
+  self:add_state{ "sum_x", paddle.zeros{ 1 }, dist_reduce_fx = "sum" }
+  self:add_state{ "sum_y", paddle.zeros{ 1 }, dist_reduce_fx = "sum" }
+  self:add_state{ "sum_x2", paddle.zeros{ 1 }, dist_reduce_fx = "sum" }
+  self:add_state{ "sum_y2", paddle.zeros{ 1 }, dist_reduce_fx = "sum" }
+  self:add_state{ "sum_xy", paddle.zeros{ 1 }, dist_reduce_fx = "sum" }
+  self:add_state{ "count", paddle.zeros{ 1 }, dist_reduce_fx = "sum" }
+end
+
+function pearson_corr_coef:update(preds, target)
+  self:_check_tensors(preds, target)
+  self.sum_x = self.sum_x + paddle.sum{ preds }
+  self.sum_y = self.sum_y + paddle.sum{ target }
+  self.sum_x2 = self.sum_x2 + paddle.sum{ preds * preds }
+  self.sum_y2 = self.sum_y2 + paddle.sum{ target * target }
+  self.sum_xy = self.sum_xy + paddle.sum{ preds * target }
+  self.count = self.count + self:_numel_as_tensor(preds)
+end
+
+function pearson_corr_coef:compute()
+  local n = self.count
+  local num = self.sum_xy * n - self.sum_x * self.sum_y
+  local vx = self.sum_x2 * n - self.sum_x * self.sum_x
+  local vy = self.sum_y2 * n - self.sum_y * self.sum_y
+  local den = paddle.sqrt{ paddle.maximum{ vx * vy, paddle.full{ { 1 }, 1e-12 } } }
+  return paddle.divide{ num, den }
+end
+
 return {
   MAE = mean_abs_error,
   MSE = mean_squared_error,
   RMSE = root_mean_squared_error,
   R2 = r2_score,
+  PearsonCorrCoef = pearson_corr_coef,
 }

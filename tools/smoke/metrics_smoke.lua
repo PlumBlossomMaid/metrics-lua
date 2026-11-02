@@ -27,7 +27,7 @@ local function check(cond, msg)
 end
 
 -- f32 LE encode + from_host_bytes (clone of the paddle-lua smokes).
-local function from_lua(vals)
+local function from_lua(vals, shape)
   local bytes = {}
   for _, v in ipairs(vals) do
     local sign = v < 0 and 1 or 0
@@ -50,7 +50,7 @@ local function from_lua(vals)
                                     math.floor(bits / 65536) % 256,
                                     math.floor(bits / 16777216) % 256)
   end
-  return core.from_host_bytes(table.concat(bytes), { #vals },
+  return core.from_host_bytes(table.concat(bytes), shape or { #vals },
                               core.PD_DTYPE_FLOAT32,
                               core.pd_place_new(core.PD_PLACE_CPU, 0))
 end
@@ -126,6 +126,51 @@ check(near(scalar(r2:compute()), 1.0), "R2 perfect == 1.0")
 local r2b = metrics.R2()
 r2b:update(from_lua { 2, 4, 6 }, from_lua { 1, 2, 3 })
 check(near(scalar(r2b:compute()), 0.0), "R2 centered-residual linear == 0.0")
+
+-- ---- multiclass Accuracy (argmax path) ----
+-- logits [4,3]: argmax -> [1,2,3,1] (1-based);target [1,2,3,2]: 3/4 hit
+local acc3 = metrics.Accuracy{ multiclass = true, num_classes = 3 }
+acc3:update(from_lua({ 3, 1, 0, 0, 2, 1, 1, 0, 4, 2, 0, 1 }, { 4, 3 }),
+            from_lua { 1, 2, 3, 2 })
+check(near(scalar(acc3:compute()), 0.75), "multiclass Accuracy == 3/4")
+
+-- ---- ConfusionMatrix ----
+local cm = metrics.ConfusionMatrix{ num_classes = 3 }
+cm:update(from_lua { 1, 2, 2, 3 }, from_lua { 1, 2, 1, 1 })
+local m = cm:compute()  -- [3,3]
+-- expected: CM[1,1]=1 (pred1,tgt1), CM[2,1]=1, CM[2,2]=1, CM[3,1]=1
+local bytes = m:to_host_bytes()
+check(near(f32_at(bytes, 1), 1) and near(f32_at(bytes, 17), 1),
+      "ConfusionMatrix diag-ish counts (0,0)/(2,0)")
+-- CM[1,2]=0: byte 5
+check(near(f32_at(bytes, 5), 0), "ConfusionMatrix zero off-diag")
+cm:reset()
+cm:update(from_lua { 3 }, from_lua { 3 })  -- CM[3,3] += 1
+local m2 = cm:compute()
+-- [3,3] row-major: element (3,3) is 0-based 8 -> byte 8*4+1 = 33
+check(near(f32_at(m2:to_host_bytes(), 33), 1), "ConfusionMatrix reset+CM[3,3]")
+
+-- ---- PearsonCorrCoef ----
+local pc = metrics.PearsonCorrCoef()
+pc:update(from_lua { 1, 2, 3, 4 }, from_lua { 2, 4, 6, 8 })
+check(near(scalar(pc:compute()), 1.0), "Pearson perfect linear == 1.0")
+
+-- ---- MeanMetric / SumMetric ----
+local mm = metrics.MeanMetric()
+mm:update(from_lua { 1, 3 })   -- sum=4, count=2
+mm:update(5)                    -- +5, +1
+check(near(scalar(mm:compute()), 3.0), "MeanMetric == (1+3+5)/3 == 3")
+local sm = metrics.SumMetric()
+sm:update(from_lua { 1, 2 })
+sm:update(3)
+check(near(scalar(sm:compute()), 6.0), "SumMetric == 1+2+3 == 6")
+
+-- ---- PSNR ----
+-- preds=[0,1] target=[1,1]: MSE=0.5,
+-- PSNR = 20*log10(1) - 10*log10(0.5) = 0 + 3.0103
+local psnr = metrics.PSNR{ data_range = 1.0 }
+psnr:update(from_lua { 0, 1 }, from_lua { 1, 1 })
+check(near(scalar(psnr:compute()), 3.0103), "PSNR MSE=0.5 == 3.0103")
 
 -- ---- MetricCollection ----
 local mc = metrics.MetricCollection{

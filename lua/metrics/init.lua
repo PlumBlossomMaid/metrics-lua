@@ -22,10 +22,17 @@ M.Accuracy = cls.Accuracy
 M.Precision = cls.Precision
 M.Recall = cls.Recall
 M.F1 = cls.F1
+M.ConfusionMatrix = cls.ConfusionMatrix
 local reg = require "metrics.regression"
 M.MAE = reg.MAE
 M.MSE = reg.MSE
 M.RMSE = reg.RMSE
 M.R2 = reg.R2
+M.PearsonCorrCoef = reg.PearsonCorrCoef
+local agg = require "metrics.aggregate"
+M.MeanMetric = agg.MeanMetric
+M.SumMetric = agg.SumMetric
+local img = require "metrics.image"
+M.PSNR = img.PSNR
 
 return M
