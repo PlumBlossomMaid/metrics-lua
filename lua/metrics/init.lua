@@ -34,5 +34,10 @@ M.MeanMetric = agg.MeanMetric
 M.SumMetric = agg.SumMetric
 local img = require "metrics.image"
 M.PSNR = img.PSNR
+local ret = require "metrics.retrieval"
+M.AUROC = ret.AUROC
+M.AveragePrecision = ret.AveragePrecision
+M.MRR = ret.MRR
+M.NDCG = ret.NDCG
 
 return M

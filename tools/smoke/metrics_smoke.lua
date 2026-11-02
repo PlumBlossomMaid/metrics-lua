@@ -172,6 +172,47 @@ local psnr = metrics.PSNR{ data_range = 1.0 }
 psnr:update(from_lua { 0, 1 }, from_lua { 1, 1 })
 check(near(scalar(psnr:compute()), 3.0103), "PSNR MSE=0.5 == 3.0103")
 
+-- ---- retrieval ----
+-- AUROC: score=[.3,.8,.6,.9] target=[0,1,0,1]
+-- asc ranks: .3->1 .6->2 .8->3 .9->4;pos ranks 3+4=7
+-- AUC = (7 - 2*3/2)/(2*2) = (7-3)/4 = 1.0
+local auroc = metrics.AUROC()
+auroc:update(from_lua { 0.3, 0.8, 0.6, 0.9 }, from_lua { 0, 1, 0, 1 })
+check(near(scalar(auroc:compute()), 1.0), "AUROC perfect ordering == 1.0")
+-- reverse: score=[.9,.8,.6,.3] target=[1,0,1,0]
+-- pos ranks: pos@1(.9)->4, pos@3(.6)->2 -> sum 6 -> (6-3)/4 = .75
+local auroc2 = metrics.AUROC()
+auroc2:update(from_lua { 0.9, 0.8, 0.6, 0.3 }, from_lua { 1, 0, 1, 0 })
+check(near(scalar(auroc2:compute()), 0.75), "AUROC partial ordering == 0.75")
+
+-- AveragePrecision: same as first AUC case: desc order 4(1),2(1),3,1
+-- k=1 tp=1 ap+=1; k=2 tp=2 ap+=1 => ap=2; /n_pos(2) = 1.0
+local ap = metrics.AveragePrecision()
+ap:update(from_lua { 0.3, 0.8, 0.6, 0.9 }, from_lua { 0, 1, 0, 1 })
+check(near(scalar(ap:compute()), 1.0), "AveragePrecision perfect == 1.0")
+
+-- MRR: first relevant at rank 1 (score .9) -> 1.0
+local mrr = metrics.MRR()
+mrr:update(from_lua { 0.3, 0.8, 0.6, 0.9 }, from_lua { 0, 1, 0, 1 })
+check(near(scalar(mrr:compute()), 1.0), "MRR rank1 == 1.0")
+-- MRR: no relevant at rank1 -> 0.5
+local mrr2 = metrics.MRR()
+mrr2:update(from_lua { 0.9, 0.8 }, from_lua { 0, 1 })
+check(near(scalar(mrr2:compute()), 0.5), "MRR rank2 == 0.5")
+
+-- NDCG: rel=[0,1,0,1] both orders give DCG=1/log2(2)+1/log2(3) -> 1.0
+local ndcg = metrics.NDCG()
+ndcg:update(from_lua { 0.3, 0.8, 0.6, 0.9 }, from_lua { 0, 1, 0, 1 })
+check(near(scalar(ndcg:compute()), 1.0), "NDCG perfect ranking == 1.0")
+-- NDCG: reversed-relevance case
+-- score desc order -> positions 1,2,3,4 with rel [0,1,0,1]
+-- DCG = 1/log2(3) + 1/log2(5) = 0.63092975357 + 0.43067655807 = 1.06160631164
+-- IDCG(target [1,1,0,0] desc) = 1/log2(2) + 1/log2(3) = 1.63092975357
+-- NDCG = 1.06160631164 / 1.63092975357 = 0.65092092981
+local ndcg2 = metrics.NDCG()
+ndcg2:update(from_lua { 0.9, 0.8, 0.6, 0.3 }, from_lua { 0, 1, 0, 1 })
+check(near(scalar(ndcg2:compute()), 0.6509209), "NDCG partial == 0.6509209")
+
 -- ---- MetricCollection ----
 local mc = metrics.MetricCollection{
   acc = metrics.Accuracy(),
